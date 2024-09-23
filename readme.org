@@ -7,7 +7,69 @@
 
 * TOC :noexport::TOC_3:
 - [[#preamble][Preamble]]
+- [[#lesson-1-setup][Lesson 1: Setup]]
 
 * Preamble
 - [[https://www.youtube.com/watch?v=pd9AVmcRc6U&list=PLVxiWMqQvhg9FCteL7I0aohj1_YiUx1x8][src]]
 - [[https://github.com/s-matyukevich/raspberry-pi-os][Based on the Github tutorials]]
+
+* Lesson 1: Setup
+
+1) Install the Cross-compiler
+   #+begin_src bash
+     sudo apt install gcc-aarch64-linux-gnu
+
+     aarch64-linux-gnu-gcc -v
+     Using built-in specs.
+     COLLECT_GCC=aarch64-linux-gnu-gcc
+     COLLECT_LTO_WRAPPER=/usr/lib/gcc/aarch64-linux-gnu/14.1.0/lto-wrapper
+     Target: aarch64-linux-gnu
+     Configured with: /build/aarch64-linux-gnu-gcc/src/gcc-14.1.0/configure --prefix=/usr --program-prefix=aarch64-linux-gnu- --with-local-prefix=/usr/aarch64-linux-gnu --with-sysroot=/usr/aarch64-linux-gnu --with-build-sysroot=/usr/aarch64-linux-gnu --with-native-system-header-dir=/include --libdir=/usr/lib --libexecdir=/usr/lib --target=aarch64-linux-gnu --host=x86_64-pc-linux-gnu --build=x86_64-pc-linux-gnu --disable-nls --enable-default-pie --enable-languages=c,c++,fortran --enable-shared --enable-threads=posix --with-system-zlib --with-isl --enable-__cxa_atexit --disable-libunwind-exceptions --enable-clocale=gnu --disable-libstdcxx-pch --disable-libssp --enable-gnu-unique-object --enable-linker-build-id --enable-lto --enable-plugin --enable-install-libiberty --with-linker-hash-style=gnu --enable-gnu-indirect-function --disable-multilib --disable-werror --enable-checking=release
+     Thread model: posix
+     Supported LTO compression algorithms: zlib zstd
+     gcc version 14.1.0 (GCC)
+   #+end_src
+   - Or use the one from ARM toolchain
+
+2) Create the =Makefile=
+   1) Setup RPI version, boot mount and cross-compiler
+   2) Define C and Assembly options for the compiler
+   3) Setup directories: =SRC_DIR= and =BUILD_DIR=
+   4) Targets:
+	  1) all: create the kernel image
+	  2) Generate object files from C source and ASM files and the associated
+         dependencies
+		 1) The dependencies are useful to instruct =make= on what targets have
+            changed
+	  3) Use the linker file to generate an ELF file
+	  4) Generate a raw executable binary from the ELF file
+	  5) Copy the kernel image and config.txt to SD card
+
+3) Create a [[file:~/OneDrive_UM/Documents/Programming/Hardware/RaspberryPi/baremetal/rpios/include/base.h::pragma once][peripherals base header]] file to setup some relevant constants:
+   1) =PBASE=: peripheral base; this value is extracted from the BCM2711
+      datasheet or from the device tree ([[file:~/OneDrive_UM/Documents/Programming/Hardware/RaspberryPi/rpi3/doc/dts/bcm2711.dtsi::ranges = <0x7e000000 0x0 0xfe000000 0x01800000>,][bcm2711.dtsi]] file):
+		#+begin_src c
+		  #address-cells = <0x02>;
+		  #size-cells = <0x01>;
+		  soc {
+			/*
+			 ,* Defined ranges:
+			 ,*   Common BCM283x peripherals
+			 ,*   BCM2711-specific peripherals
+			 ,*   ARM-local peripherals
+			 ,*/
+			ranges = <0x7e000000  0x0 0xfe000000  0x01800000>,
+			  <0x7c000000  0x0 0xfc000000  0x02000000>,
+			  <0x40000000  0x0 0xff800000  0x00800000>;
+		#+end_src
+
+	  1) The peripheral base is the first region, defined by =child-bus-address
+         parent-bus-address length= 1). The =parent-bus-address= requires 2
+         =address-cells= (root node, in this case)
+
+		|-------------------+-----------------+------------|
+		| Child-Bus-Address | Parent-Bus-Addr |     Length |
+		|-------------------+-----------------+------------|
+		|        0x7e000000 | 0x00 0xfe000000 | 0x18000000 |
+		|-------------------+-----------------+------------|
+
