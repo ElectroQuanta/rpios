@@ -1,0 +1,13 @@
+#+TITLE: RPi4 Baremetal
+#+AUTHOR: José Pires
+#+DATE: [2024-09-23 seg 16:53]
+#+EMAIL: a50178@alunos.uminho.pt
+
+#+LATEX_COMPILER: xelatex
+
+* TOC :noexport::TOC_3:
+- [[#preamble][Preamble]]
+
+* Preamble
+- [[https://www.youtube.com/watch?v=pd9AVmcRc6U&list=PLVxiWMqQvhg9FCteL7I0aohj1_YiUx1x8][src]]
+- [[https://github.com/s-matyukevich/raspberry-pi-os][Based on the Github tutorials]]
