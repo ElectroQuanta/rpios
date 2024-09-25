@@ -8,6 +8,12 @@
 * TOC :noexport::TOC_3:
 - [[#preamble][Preamble]]
 - [[#lesson-1-setup][Lesson 1: Setup]]
+- [[#lesson-2-mini-uart][Lesson 2: Mini-UART]]
+  - [[#mini-uart-setup][Mini-UART setup]]
+  - [[#utils][utils]]
+  - [[#memory-management][Memory management]]
+  - [[#boots][=boot.S=]]
+  - [[#kernelc][=kernel.c=]]
 
 * Preamble
 - [[https://www.youtube.com/watch?v=pd9AVmcRc6U&list=PLVxiWMqQvhg9FCteL7I0aohj1_YiUx1x8][src]]
@@ -17,17 +23,17 @@
 
 1) Install the Cross-compiler
    #+begin_src bash
-     sudo apt install gcc-aarch64-linux-gnu
+	 sudo apt install gcc-aarch64-linux-gnu
 
-     aarch64-linux-gnu-gcc -v
-     Using built-in specs.
-     COLLECT_GCC=aarch64-linux-gnu-gcc
-     COLLECT_LTO_WRAPPER=/usr/lib/gcc/aarch64-linux-gnu/14.1.0/lto-wrapper
-     Target: aarch64-linux-gnu
-     Configured with: /build/aarch64-linux-gnu-gcc/src/gcc-14.1.0/configure --prefix=/usr --program-prefix=aarch64-linux-gnu- --with-local-prefix=/usr/aarch64-linux-gnu --with-sysroot=/usr/aarch64-linux-gnu --with-build-sysroot=/usr/aarch64-linux-gnu --with-native-system-header-dir=/include --libdir=/usr/lib --libexecdir=/usr/lib --target=aarch64-linux-gnu --host=x86_64-pc-linux-gnu --build=x86_64-pc-linux-gnu --disable-nls --enable-default-pie --enable-languages=c,c++,fortran --enable-shared --enable-threads=posix --with-system-zlib --with-isl --enable-__cxa_atexit --disable-libunwind-exceptions --enable-clocale=gnu --disable-libstdcxx-pch --disable-libssp --enable-gnu-unique-object --enable-linker-build-id --enable-lto --enable-plugin --enable-install-libiberty --with-linker-hash-style=gnu --enable-gnu-indirect-function --disable-multilib --disable-werror --enable-checking=release
-     Thread model: posix
-     Supported LTO compression algorithms: zlib zstd
-     gcc version 14.1.0 (GCC)
+	 aarch64-linux-gnu-gcc -v
+	 Using built-in specs.
+	 COLLECT_GCC=aarch64-linux-gnu-gcc
+	 COLLECT_LTO_WRAPPER=/usr/lib/gcc/aarch64-linux-gnu/14.1.0/lto-wrapper
+	 Target: aarch64-linux-gnu
+	 Configured with: /build/aarch64-linux-gnu-gcc/src/gcc-14.1.0/configure --prefix=/usr --program-prefix=aarch64-linux-gnu- --with-local-prefix=/usr/aarch64-linux-gnu --with-sysroot=/usr/aarch64-linux-gnu --with-build-sysroot=/usr/aarch64-linux-gnu --with-native-system-header-dir=/include --libdir=/usr/lib --libexecdir=/usr/lib --target=aarch64-linux-gnu --host=x86_64-pc-linux-gnu --build=x86_64-pc-linux-gnu --disable-nls --enable-default-pie --enable-languages=c,c++,fortran --enable-shared --enable-threads=posix --with-system-zlib --with-isl --enable-__cxa_atexit --disable-libunwind-exceptions --enable-clocale=gnu --disable-libstdcxx-pch --disable-libssp --enable-gnu-unique-object --enable-linker-build-id --enable-lto --enable-plugin --enable-install-libiberty --with-linker-hash-style=gnu --enable-gnu-indirect-function --disable-multilib --disable-werror --enable-checking=release
+	 Thread model: posix
+	 Supported LTO compression algorithms: zlib zstd
+	 gcc version 14.1.0 (GCC)
    #+end_src
    - Or use the one from ARM toolchain
 
@@ -73,3 +79,176 @@
 		|        0x7e000000 | 0x00 0xfe000000 | 0x18000000 |
 		|-------------------+-----------------+------------|
 
+* Lesson 2: Mini-UART
+
+** Mini-UART setup
+- Open BCM2835 peripherals, in the Auxiliaries secion
+  - The Auxiliary peripherals named =AUX_MU_*= correspond to the Mini-UART
+
+
+|-------------+-----------------+---------------------------+------|
+| Address     | Register Name   | Description               | Size |
+|-------------+-----------------+---------------------------+------|
+| 0x7E21 5040 | AUX_MU_IO_REG   | M-Uart I/O Data           |    8 |
+| 0x7E21 5044 | AUX_MU_IER_REG  | M-Uart Interrupt Enable   |    8 |
+| 0x7E21 5048 | AUX_MU_IIR_REG  | M-Uart Interrupt Identify |    8 |
+| 0x7E21 504C | AUX_MU_LCR_REG  | M-Uart Line Control       |    8 |
+| 0x7E21 5050 | AUX_MU_MCR_REG  | M-Uart Modem Control      |    8 |
+| 0x7E21 5054 | AUX_MU_LSR_REG  | M-Uart Line Status        |    8 |
+| 0x7E21 5058 | AUX_MU_MSR_REG  | M-Uart Modem Status       |    8 |
+| 0x7E21 505C | AUX_MU_SCRATCH  | M-Uart Scratch            |    8 |
+| 0x7E21 5060 | AUX_MU_CNTL_REG | M-Uart Extra Control      |    8 |
+| 0x7E21 5064 | AUX_MU_STAT_REG | M-Uart Extra Status       |   32 |
+| 0x7E21 5068 | AUX_MU_BAUD_REG | M-Uart Baudrate           |   16 |
+|-------------+-----------------+---------------------------+------|
+
+We will create a struct to host the auxiliary Mini UART peripheral
+#+begin_src c
+struct AuxRegs {
+  reg32 irq_status; /**< Auxiliary Interrupt status */
+  reg32 enables; /**< Auxiliary enables */
+  reg32 reserved[14]; // (0x5040 - 1 - (0x5004 + 3)) / 4
+  reg32 mu_io;         /**< Mini UART I/O Data */
+  reg32 mu_ier;        /**< Mini UART Interrupt Enable */
+  reg32 mu_iir;        /**< Mini UART Interrupt Identify */
+  reg32 mu_lcr;        /**< Mini UART Line Control */
+  reg32 mu_mcr;        /**< Mini UART Modem Control */
+  reg32 mu_lsr;        /**< Mini UART Line Status */
+  reg32 mu_msr;        /**< Mini UART Modem Status */
+  reg32 mu_scratch;    /**< Mini UART Scratch */
+  reg32 mu_control;    /**< Mini UART Extra Control */
+  reg32 mu_status;     /**< Mini UART Extra Status */
+  reg32 mu_baud_rate;  /**< Mini UART Baudrate */
+};
+
+#define REGS_AUX((struct AuxRegs *)(PBASE + 0x00215000))
+#+end_src
+
+
+We define the basic interface (header file) for the Mini UART:
+#+begin_src c
+void uart_init();
+char uart_recv();
+void uart_send(char c);
+void uart_send_string(char *str);
+#+end_src
+
+** utils
+Utils module support several utility functions used throughout the code.
+- It contains an interface: =utils.h=
+	#+begin_src c
+	  /**
+	   ,* @brief Create a delay for a nr of ticks
+	   ,* @param ticks: nr of ticks to delay
+	   ,*/
+	  void delay(u64 ticks);
+
+	  /**
+	   ,* @brief Put a 32-bit value at a designated address
+	   ,* @param val: 32-bit value to copy
+	   ,* @param addr: address to copy the value from
+	   ,*/
+	  void put32(u64 addr, u32 val);
+
+	  /**
+	   ,* @brief Get a 32-bit value from a designated address
+	   ,* @param address: address to get the value from
+	   ,* @return 32-bit value
+	   ,*/
+	  u32 get32(u64 address);
+	#+end_src
+- and an implementation: =utils.s=
+
+** Memory management
+The =mm= module is responsible for managing the memory.
+
+=mm.h=
+#+begin_src c
+#define PAGE_SHIFT 12
+#define TABLE_SHIFT 9
+#define SECTION_SHIFT (PAGE_SHIFT + TABLE_SHIFT)
+#define PAGE_SIZE (1 << PAGE_SHIFT) // Page size
+#define SECTION_SIZE (1 << PAGE_SHIFT) // Section size
+
+#define LOW_MEMORY (2 * SECTION_SIZE)
+
+/**< Make sure the functions below are only included in C compilations */
+#ifndef __ASSEMBLER__
+/**
+ * @brief Clear the memory (zero it)
+ * @param src: pointer to memory to clear
+ * @param n: nr of bytes to clear
+ */
+//void memzero( unsigned long src, unsigned int n);
+void memzero( u64 src, u32 n);
+#endif
+#+end_src
+
+=mm.S=: implementation in Assembly
+
+** =boot.S=
+The =boot.S= is the startup code for our kernel, namely the =_start= label.
+- We retrieve the CPU ID and if it's zero (master), we branch to the =master=
+  label
+- Else we hang the processor
+- In the =master= section, we clear the memory the BSS (Block Started by Symbol)
+  segment, which holds *uninitialized global and static variables*
+- We set the stack pointer and jump to the kernel main, which should run forever
+- Otherwise, we hang the processor, which basically means we go into a low-power
+  mode (=wfe=) and loop forever
+
+
+#+begin_src asm
+#include "mm.h"
+
+.section ".text.boot"
+
+.global _start
+_start: 
+    mrs x0, mpidr_el1 // get CPU ID into x0
+    and x0, x0, #0xFF // and it with 0xFF
+    cbz x0, master // if CPU_ID == 0, we branch to master
+    b proc_hang // else we branch to proc_hang (hanging the processor)
+
+master: 
+    adr x0, bss_begin // addr of BSS_BEGIN
+    adr x1, bss_end // addr of BSS_END
+    sub x1, x1, x0 // get the size of BSS = BSS_END - BSS_BEGIN
+    bl memzero // zero it: memzero x0 x1
+
+    mov sp, #LOW_MEMORY // set the SP to #LOW_MEMORY
+    bl kernel_main // jump to kernel_main
+    b proc_hang // hang the processor if we ever leave kernel_main
+
+proc_hang:  
+    wfe // wait for event
+    b proc_hang
+#+end_src
+
+** =kernel.c=
+This is our main function.
+- We initialize the UART and send a welcome string alongside with the HW version
+- Then we echo back anything the user types.
+
+#+begin_src c
+#include "mini_uart.h"
+
+void kernel_main() {
+  uart_init();
+  uart_send_string("RPi Baremetal OS initializing...\n");
+
+#if RPI_VERSION == 3
+  uart_send_string("\tBoard: RPi 3\n");
+#endif
+
+#if RPI_VERSION == 4
+  uart_send_string("\tBoard: RPi 4\n");
+#endif
+
+  uart_send_string("\n\nDone\n");
+
+  while(1) {
+	uart_send( uart_recv() );
+  }
+}
+#+end_src

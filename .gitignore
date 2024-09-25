@@ -60,3 +60,13 @@ flycheck_*.el
 
 # Direnv
 .envrc
+
+# Compile commands
+compile_commands.json
+
+# cache
+/.cache
+
+# Compilation files
+*.o
+*.d

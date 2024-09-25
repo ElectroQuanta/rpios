@@ -1,3 +1,15 @@
+/**
+ * @file base.h
+ * @author Jose Pires
+ * @date 2024-09-24
+ *
+ * @brief Peripherals base definition
+ *
+ * detailed
+ *
+ * @copyright Jose Pires 2024
+ */
+
 #pragma once
 
 #if RPI_VERSION == 3
