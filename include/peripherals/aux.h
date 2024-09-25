@@ -38,4 +38,4 @@ struct AuxRegs {
   reg32 mu_baud_rate;  /**< Mini UART Baudrate */
 };
 
-#define REGS_AUX((struct AuxRegs *)(PBASE + 0x00215000))
+#define REGS_AUX ((struct AuxRegs *)(PBASE + 0x00215000))
