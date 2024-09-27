@@ -15,6 +15,7 @@
   - [[#boots][=boot.S=]]
   - [[#kernelc][=kernel.c=]]
 - [[#lesson-3-gpio][Lesson 3: GPIO]]
+- [[#lesson-4-mini-uart-implementation][Lesson 4: Mini-UART implementation]]
 
 * Preamble
 - [[https://www.youtube.com/watch?v=pd9AVmcRc6U&list=PLVxiWMqQvhg9FCteL7I0aohj1_YiUx1x8][src]]
@@ -333,3 +334,104 @@ void gpio_pin_enable(u8 pinNumber){
   REGS_GPIO->pupd_enable_clocks[pinNumber / 32] = 0;
 }
 #+end_src
+
+* Lesson 4: Mini-UART implementation
+First, and foremost, I fixed some assembly errors that caused the compilation to
+fail, namely:
+- Assembly comments: in GNU Assembler the comments must be =/* */= for inline
+  and multiline comments
+
+
+[[file:src/mini_uart.c][mini_uart.c]] contains the Mini-UART implementation.
+1) =void uart_init()=: Initialize the UART
+   - Set the TXD and RXD pins to alternate function 5 (UART)
+   - Enable the clocks for each pin
+   - Configure the Mini UART:
+	 - Enable the mini uart before doing any setup
+	 - disable the control to manipulate extra flags
+	 - Set the data size to 8-bits
+	 - Clear modem signals (RTS low)
+	 - Set the baudrate to 115200 bps
+	 - Send some characters over to fix boot messages
+2) The baudrate register is calculated with an auxiliary function: 
+	#+begin_src c
+	/**
+	* @brief Calculate Baudrate register value
+	* @param sysclk: system clock frequency (in Hz) [in]
+	* @param baudrate: baud rate (in bps) [in]
+	* @return register value
+	*
+	* BR_reg = sysclk / (8 * BR) - 1 (see BCM2835 Peripherals - MiniUART)
+	*/
+	u32 static inline calc_br_reg(u32 sysclk, u32 baudrate){
+	return (sysclk / ( 8 * baudrate ) + 1);
+	};
+	#+end_src
+3) Send a character over the UART
+	#+begin_src c
+	/**
+	* Send a character through UART
+	* - Wait until bit 5 from LSR_REG is empty (this mean the TX FIFO can
+	*   accept at least one byte)
+	* - Data written to IO_REG is put in the transmit FIFO
+	*   (provided it is not full)
+	*/
+	void uart_send(char c) {
+	while (!(REGS_AUX->mu_lsr & (1 << 5)))
+		;
+
+	REGS_AUX->mu_io = c;
+	}
+	#+end_src
+4) Receive a character from UART
+	#+begin_src c
+	/**
+	* Receive a character from UART
+	* - Wait until a character is received: LSR_REG bit 1 is set
+	* - Return a byte from the IO register
+	*  - As the IO register is 32-bit we need to AND-it with 0xFF
+	*/
+	char uart_recv(){
+	while (!(REGS_AUX->mu_lsr & (1 << 0)))
+		;
+
+	return REGS_AUX->mu_io & 0xFF;
+	}
+	#+end_src
+5) Send a string over UART:
+	#+begin_src c
+	/**
+	* Send a string
+	* - While the NUL terminator is not found
+	*  - Send the character
+	*  - Increment the pointer to point to the next char
+	*  - If a newline is found, send a CR before it
+	*/
+	void uart_send_string(char *str) {
+
+	while(*str){
+		if(*str == '\n'){
+		uart_send('\r');
+		}
+	}
+	uart_send(*str);
+	str++;
+
+	}
+	#+end_src
+
+
+A linker script ([[file:src/linker.ld][linker.ld]]) describes how the sections in the input files should
+be mapped into the output file, and how to control the memory layout of the
+file. ([[https://users.informatik.haw-hamburg.de/~krabat/FH-Labor/gnupro/5_GNUPro_Utilities/c_Using_LD/ldLinker_scripts.html][src]])
+- The output file is the ELF file
+- We need to set the boot code (=boot.S=) into the first region of the
+  executable, which contains the symbol =_start= (this is implicitly our entry
+  point; explicitly the linker script must contain =ENTRY(_start)=)
+- We then place the code (=.text=), the read-only data (=.rodata=) and
+  initialized read-write data (=.data=).
+- We align the memory for the BSS segment and we define the =bss_begin= and
+  =bss_end= symbols to allow the boot code (=boot.S=) to clear the data before
+  running the program.
+- We define the BSS segment which contains uninitialized data.
+

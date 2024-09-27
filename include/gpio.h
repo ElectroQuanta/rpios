@@ -39,7 +39,7 @@ typedef enum _GpioPUD {
   GPUD_Off = 0b00, /**< Disable Pull-up/down */
   GPUD_PullDown = 0b01, /**< Enable Pull down control */
   GPUD_PullUp = 0b10, /**< Enable Pull Up control */
-};
+} GpioPUD;
 
 /**
  * @brief Set the GPIO Pin function
