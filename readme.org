@@ -16,6 +16,7 @@
   - [[#kernelc][=kernel.c=]]
 - [[#lesson-3-gpio][Lesson 3: GPIO]]
 - [[#lesson-4-mini-uart-implementation][Lesson 4: Mini-UART implementation]]
+- [[#lesson-5-deployment-and-testing][Lesson 5: Deployment and testing]]
 
 * Preamble
 - [[https://www.youtube.com/watch?v=pd9AVmcRc6U&list=PLVxiWMqQvhg9FCteL7I0aohj1_YiUx1x8][src]]
@@ -434,4 +435,70 @@ file. ([[https://users.informatik.haw-hamburg.de/~krabat/FH-Labor/gnupro/5_GNUPr
   =bss_end= symbols to allow the boot code (=boot.S=) to clear the data before
   running the program.
 - We define the BSS segment which contains uninitialized data.
+
+* Lesson 5: Deployment and testing
+1) Download the RPi OS to bootstrap
+   1) Use the =rpi-imager= to flash a RPiOS 64-bit Lite
+   2) We need this to setup the firmware and bootloaders
+	  1) Otherwise we would need U-boot
+2) Creating a mounting point for the SD card (it must match =BOOTMNT= in the
+   Makefile)
+	#+begin_src bash
+	sudo mkdir -p /run/media/zmp/bootfs
+	#+end_src
+3) Mount the SD card
+	#+begin_src bash 
+	lsblk
+	sudo mount /dev/sda1 /run/media/zmp/bootfs/
+	#+end_src
+4) Build
+	#+begin_src bash
+	make && make clean
+	#+end_src
+5) Unmount the SD card and eject
+	#+begin_src bash
+	sudo umount /dev/sda1 && sudo eject /dev/sda
+	#+end_src
+6) Connect the USB-TTL cable to RPi4:
+   1) GPIO6: GND (Black)
+   2) GPIO8: TXD (White)
+   3) GPIO10: RXD (Green)
+7) Connect with =screen=
+	#+begin_src bash
+	sudo dmesg | tail -n 20 | grep tty 
+	screen /dev/ttyUSB0 115200
+	#+end_src
+8) Power on the RPi
+	#+begin_src bash
+	MESS:00:00:04.922501:0: dtb_file 'bcm2711-rpi-4-b.dtb'
+	MESS:00:00:04.930523:0: brfs: File read: /mfs/sd/bcm2711-rpi-4-b.dtb
+	MESS:00:00:04.933768:0: Loaded 'bcm2711-rpi-4-b.dtb' to 0x100 size 0xd9fc
+	MESS:00:00:04.954003:0: brfs: File read: 55804 bytes
+	MESS:00:00:04.965824:0: brfs: File read: /mfs/sd/overlays/overlay_map.dtb
+	MESS:00:00:04.993014:0: brfs: File read: 5255 bytes
+	MESS:00:00:04.996166:0: brfs: File read: /mfs/sd/config.txt
+	MESS:00:00:05.000487:0: brfs: File read: 81 bytes
+	MESS:00:00:05.013031:0: brfs: File read: /mfs/sd/overlays/miniuart-bt.dtbo
+	MESS:00:00:05.037206:0: Loaded overlay 'miniuart-bt'
+	MESS:00:00:05.096379:0: brfs: File read: 1566 bytes
+	MESS:00:00:05.099548:0: brfs: File read: /mfs/sd/cmdline.txt
+	MESS:00:00:05.103592:0: Read command line from file 'cmdline.txt':
+	MESS:00:00:05.109435:0: 'console=serial0,115200 console=tty1 root=PARTUUID=a3f161f3-02 rootfstype=ext4 fsck.repair=yes rootwait quiet init=/usr/lib/raspberrypi-sys-mods/firstboot cfg80211.ieee80211_regdom=PT systemd.run=/boot/firstrun.sh systemd.run_su
+	MESS:00:00:05.253042:0: brfs: File read: 286 bytes
+	MESS:00:00:05.256800:0: brfs: File read: /mfs/sd/kernel8-rpi4.img
+	MESS:00:00:05.260540:0: Loaded 'kernel8-rpi4.img' to 0x200000 size 0x4e8
+	MESS:00:00:05.266981:0: Kernel relocated to 0x80000
+	MESS:00:00:05.271561:0: Device tree loaded to 0x2eff2100 (size 0xded8)
+	MESS:00:00:05.279834:0: uart: Set PL011 baud rate to 103448.300000 Hz
+	MESS:00:00:05.286885:0: uart: Baud rate change done...
+	MESS:00:00:05.288908:0: uart: Baud rate change done...
+	MESS:00:00:05.294513:0: gpioman: gpioman_get_pin_num: pin SDC
+
+	RPi Baremetal OS initializing...
+			Board: RPi 4
+
+
+	Done
+	#+end_src
+
 

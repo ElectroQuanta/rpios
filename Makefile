@@ -1,7 +1,7 @@
 RPI_VERSION ?= 4
 
 # Directory to mount the boot files
-BOOTMNT ?= /run/media/zmp/SDCard/BOOT
+BOOTMNT ?= /run/media/zmp/bootfs
 
 ARMGNU ?= aarch64-linux-gnu
 

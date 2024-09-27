@@ -28,7 +28,7 @@
  * BR_reg = sysclk / (8 * BR) - 1 (see BCM2835 Peripherals - MiniUART)
  */
 u32 static inline calc_br_reg(u32 sysclk, u32 baudrate){
-  return (sysclk / ( 8 * baudrate ) + 1);
+  return (sysclk / ( 8 * baudrate ) - 1);
 };
 
 
@@ -51,22 +51,21 @@ void uart_init(){
   gpio_pin_enable(TXD);
   gpio_pin_enable(RXD);
 
-  REGS_AUX->enables = 0b01; // first bit is Mini-UART enable
+  REGS_AUX->enables = (1 << 0); // first bit is Mini-UART enable
   REGS_AUX->mu_control = 0; // disable control to manipulate extra flags
   REGS_AUX->mu_ier = 0; // interrupts disabled
-  //REGS_AUX->mu_lcr = (1 << 0) | (1 << 1);
-  REGS_AUX->mu_lcr = 3; // Why?
+  REGS_AUX->mu_lcr = (1 << 0) | (1 << 1); // Why?
   REGS_AUX->mu_mcr = 0;
 
 
 #if RPI_VERSION == 3
   //REGS_AUX->mu_baud_rate = 270;
-  REGS_AUX->mu_baud_rate = calc_br_reg(250e6, 115200);
+  REGS_AUX->mu_baud_rate = (reg32)calc_br_reg(250e6, 115200);
 #endif
 
 #if RPI_VERSION == 4
   //REGS_AUX->mu_baud_rate = 541;
-  REGS_AUX->mu_baud_rate = calc_br_reg(500e6, 115200);
+  REGS_AUX->mu_baud_rate = (reg32) calc_br_reg(500e6, 115200);
 #endif
 
   REGS_AUX->mu_control = (1 << 0) | (1 << 1); /**< Enable TX and RX */
@@ -85,7 +84,7 @@ void uart_init(){
  *   (provided it is not full)
  */
 void uart_send(char c) {
-  while (!(REGS_AUX->mu_lsr & (1 << 5)))
+  while (! (REGS_AUX->mu_lsr & (1 << 5)) )
     ;
 
   REGS_AUX->mu_io = c;
@@ -117,8 +116,9 @@ void uart_send_string(char *str) {
 	if(*str == '\n'){
 	  uart_send('\r');
 	}
-  }
-  uart_send(*str);
-  str++;
+  
+	uart_send(*str);
+	str++;
+  }  
 
 }
