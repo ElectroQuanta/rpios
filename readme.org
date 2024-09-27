@@ -124,7 +124,7 @@ struct AuxRegs {
   reg32 mu_baud_rate;  /**< Mini UART Baudrate */
 };
 
-#define REGS_AUX((struct AuxRegs *)(PBASE + 0x00215000))
+#define REGS_AUX ((struct AuxRegs *)(PBASE + 0x00215000))
 #+end_src
 
 
@@ -365,7 +365,7 @@ fail, namely:
 	* BR_reg = sysclk / (8 * BR) - 1 (see BCM2835 Peripherals - MiniUART)
 	*/
 	u32 static inline calc_br_reg(u32 sysclk, u32 baudrate){
-	return (sysclk / ( 8 * baudrate ) + 1);
+	return (sysclk / ( 8 * baudrate ) - 1);
 	};
 	#+end_src
 3) Send a character over the UART
