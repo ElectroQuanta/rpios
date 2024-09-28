@@ -17,6 +17,12 @@
 - [[#lesson-3-gpio][Lesson 3: GPIO]]
 - [[#lesson-4-mini-uart-implementation][Lesson 4: Mini-UART implementation]]
 - [[#lesson-5-deployment-and-testing][Lesson 5: Deployment and testing]]
+- [[#lesson-6-exceptions-levels-and-armstub][Lesson 6: Exceptions Levels and Armstub]]
+  - [[#get_el][=get_el()=]]
+  - [[#printf-implementation-and-kernel_main][=printf= implementation and =kernel_main()=]]
+  - [[#armstub][armstub]]
+  - [[#makefile][Makefile]]
+  - [[#deployment-and-testing][Deployment and testing]]
 
 * Preamble
 - [[https://www.youtube.com/watch?v=pd9AVmcRc6U&list=PLVxiWMqQvhg9FCteL7I0aohj1_YiUx1x8][src]]
@@ -502,3 +508,206 @@ file. ([[https://users.informatik.haw-hamburg.de/~krabat/FH-Labor/gnupro/5_GNUPr
 	#+end_src
 
 
+* Lesson 6: Exceptions Levels and Armstub
+The exception level (EL) is the permission level for code execution.
+- EL0: lowest privilege: the application run on this level
+- EL1: highest level: the firmware runs on this level
+
+
+*Problem*: on older version of the RPi our kernel image would run on EL3
+- However, it currently runs on the EL2
+
+*Idea*: We will use the =armstub=, which is used in the booloader process before
+ running our kernel, to change the EL to EL3
+
+*Steps*:
+1) Check our kernel current EL
+   1) Write an assembly routine (in =utils.S=) to retrieve the current EL
+   2) Compare it to EL3
+   3) Add printf code to our code base for easier print
+
+2) Create an =armstub= binary to modify our kernel EL to EL3
+	#+begin_quote
+	-- armstub/
+	`-- build/
+	`-- src/
+		`-- armstub.S
+	#+end_quote
+   
+3) Extend our =Makefile= to generate and copy the =armstub= to the SD card
+
+4) Modify our =config.txt= to make it ware of the new =armstub=
+
+5) Deploy and test:
+   1) =make=: generate kernel image and config.txt and deploy it
+   2) =make armstub=: generate armstup and deploy it
+   3) =screen /dev/ttyUSB0 115200=
+
+** =get_el()=
+The =get_el()= routine is an utility function (implemented in Assembly) to get
+the current Exception Level of our code.
+
+[[file:include/utils.h::u32 get_el();][utils.h]]:
+#+begin_src c
+/**
+ * @brief Get Current Exception level
+ * @return current exception level
+ *
+ * The CurrentEL system register contains the current system
+ * exception level. We extract it and return it
+ */
+u32 get_el();
+#+end_src
+
+[[file:src/utils.S::/* u32 get_el()][utils.s]]:
+#+begin_src asm
+/* u32 get_el()
+ * x0: return value (EL value)
+ * - Move from system register CurrentEL (which holds the current EL)
+ * to the general-purpose register x0
+ * - Left Shift rotate (1 position) to extract the value
+*/
+.globl get_el
+get_el: 
+    mrs x0, CurrentEL
+    lsr x0, x0, #2
+    ret
+#+end_src
+
+** =printf= implementation and =kernel_main()=
+We need an easier way to print formatted text to our UART.
+- For that purpose we used an alread provided =printf= implementation
+- We need to provide a function pointer to a =putc= function that instructs
+  =printf= how to output a character.
+  - The =init_printf()= requires a function pointer to a function:
+	- that returns: =void=
+	- has args: =(void *, char)=
+
+[[file:src/kernel.c::void putc(void* p, char c){][kernel.c]]
+#+begin_src c
+#include "printf.h"
+
+/**
+ * @brief Put a char on the output (UART)
+ * @param p: unused
+ * @param c: char to print
+ *
+ * This is a custom implementation of putchar that is meant to be used
+ * as a callback for printf
+ * - We send the character via UART (in case of NEWLINE, prepend it w/ CR)
+ *
+ * We pass this function, as a pointer to @init_printf
+ * void init_printf(void* putp, void (*putf) (void*,char));
+ *
+ * So we need to implement a function with the following prototype scheme:
+ * - args: (void *, char c)
+ * - return: void
+ */
+void putc(void* p, char c){
+  if(c == '\n'){
+	uart_send('\n');
+  }
+
+  uart_send(c);
+}
+
+void kernel_main() {
+  uart_init(); /**< Initialize the UART */
+  init_printf(0, putc); /**< Init printf w/ a function ptr to putchar */
+  printf("RPi Baremetal OS initializing...\n");
+
+  printf("\n\nEL = %d\n", get_el()); /**< Get current Exception level */
+
+  while(1) {
+	uart_send( uart_recv() );
+  }
+}
+#+end_src
+
+** armstub
+The ARM stub is required to comply with the ARM Linux Boot protocol,
+which ARM machines must follow to boot a Linux Kernel ([[https://leiradel.github.io/2019/01/20/Raspberry-Pi-Stubs.html][src]])
+
+Create the following struct in your root folder
+#+begin_quote
+-- armstub/
+`-- build/
+`-- src/
+	`-- armstub.S
+#+end_quote
+
+[[file:armstub/src/armstub.S::.globl _start][armstub.S]]:
+#+begin_src asm
+/* Armstub 
+ * The ARM stub is required to comply with the ARM Linux Boot protocol,
+ * which ARM machines must follow to boot a Linux Kernel
+ * https://leiradel.github.io/2019/01/20/Raspberry-Pi-Stubs.html
+ *
+ * based on https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S
+ *
+ */
+.globl _start
+_start:
+    ldr w0, kernel_entry32 /* Load the kernel_entry32 addr to w0*/ 
+    br x0 /* Branch to register */
+
+.ltorg /* create a literal pool immediately */
+
+.org 0xf0 /* Change the location counter to 0xf0 */
+.globl stub_magic /* required by the bootloader */
+stub_magic: 
+    .word 0x5afe570b 
+
+.org 0xf4 /* Change the location counter to 0xf4 */
+.globl stub_version /* required by the bootloader */
+stub_version:   
+    .word 0
+
+.org 0xfc 
+.globl kernel_entry32 /* Stub entry point */
+kernel_entry32: 
+    .word 0x0 /* Run the kernel (kernel8-rpi4.img) from the beginning */
+#+end_src
+- We define the =start= label, from which we should jump to =kernel_entry32=
+- In =kernel_entry32= we run the kernel8-rpi4.img from the beginning
+- The =stub_magic= and =stub_version= are required at specific locations and
+  with specific contents by the bootloader in order to be a valid file
+
+** Makefile
+[[file:Makefile::armstub/build/armstub_s.o: armstub/src/armstub.S][Makefile]]
+#+begin_src Makefile
+armstub/build/armstub_s.o: armstub/src/armstub.S
+	mkdir -p $(@D)
+	$(ARMGNU)-gcc $(COPS) -MMD -c $< -o $@
+
+armstub: armstub/build/armstub_s.o
+	$(ARMGNU)-ld --section-start=.text=0 -o armstub/build/armstub.elf armstub/build/armstub_s.o
+	$(ARMGNU)-objcopy armstub/build/armstub.elf -O binary armstub-new.bin
+	sudo cp armstub-new.bin $(BOOTMNT)/
+	sync
+#+end_src
+- We compile (assemble) the =armstub.S= file with the C options
+- We build the =armstub-new.bin= binary:
+  - Link the object file, defining the start as code at address 0, generating an
+    ELF file
+  - We generate the binary
+  - We copy it to the SD card
+
+** Deployment and testing
+*Host*:
+#+begin_src bash
+sudo mount /dev/sdb1 /run/media/zmp/bootfs
+make clean && make # Make kernel image
+make armstub
+sudo umount /dev/sdb1 && sudo eject /dev/sdb
+#+end_src
+
+*Target*
+#+begin_src bash
+screen /dev/ttyUSB0 115200
+
+RPi Baremetal OS initializing...
+                                        Board: RPi 4
+
+                                                    EL = 3
+#+end_src

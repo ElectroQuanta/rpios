@@ -99,3 +99,14 @@ else
 endif
 	sudo cp config.txt $(BOOTMNT)/
 	sync
+
+
+armstub/build/armstub_s.o: armstub/src/armstub.S
+	mkdir -p $(@D)
+	$(ARMGNU)-gcc $(COPS) -MMD -c $< -o $@
+
+armstub: armstub/build/armstub_s.o
+	$(ARMGNU)-ld --section-start=.text=0 -o armstub/build/armstub.elf armstub/build/armstub_s.o
+	$(ARMGNU)-objcopy armstub/build/armstub.elf -O binary armstub-new.bin
+	sudo cp armstub-new.bin $(BOOTMNT)/
+	sync

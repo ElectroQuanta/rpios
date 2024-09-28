@@ -39,3 +39,13 @@ void put32(u64 addr, u32 val);
  * detailed
  */
 u32 get32(u64 address);
+
+
+/**
+ * @brief Get Current Exception level
+ * @return current exception level
+ *
+ * The CurrentEL system register contains the current system
+ * exception level. We extract it and return it
+ */
+u32 get_el();

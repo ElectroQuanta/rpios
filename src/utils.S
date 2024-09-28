@@ -21,3 +21,15 @@ put32:
 get32:
     ldr w0, [x0] /* load the value (to w0) from the addr pointed by x0 */
     ret
+
+/* u32 get_el()
+ * x0: return value (EL value)
+ * - Move from system register CurrentEL (which holds the current EL)
+ * to the general-purpose register x0
+ * - Left Shift rotate (1 position) to extract the value
+*/
+.globl get_el
+get_el: 
+    mrs x0, CurrentEL
+    lsr x0, x0, #2
+    ret
