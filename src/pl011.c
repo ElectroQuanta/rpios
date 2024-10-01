@@ -15,6 +15,27 @@
 #include "pl011.h"
 #include "common.h"
 
+// Static variables to hold UART configurations
+// Define the array of UART instances
+static pl011_uart uart_instances[] = {
+    {.regs = (pl011_regs *)UART0,
+     .tx_pin = 14,
+     .rx_pin = 15,
+     .gpio_func = GFAlt0}, // UART0
+    {.regs = (pl011_regs *)UART5,
+     .tx_pin = 12,
+     .rx_pin = 13,
+     .gpio_func = GFAlt4} // UART5
+};
+
+// Function to get a pointer to a UART by index
+pl011_uart *get_uart_by_index(int index) {
+  if (index < 0 || index >= (sizeof(uart_instances) / sizeof(pl011_uart))) {
+	return NULL; // Return NULL for invalid index
+  }
+  return &uart_instances[index];
+}
+
 /**
  * Set the baudrate register
  * - Check the baudrate is valid

@@ -53,14 +53,19 @@ void kernel_main() {
 
 #if UART_PL011 == 1
 
-  pl011_uart *uart = &uart5;
+  //  pl011_uart *uart = &uart5;
+ pl011_uart *uart = get_uart_by_index(1); // Retrieve the pointer to UART5 using index 1
+
+ if (!uart) {
+   return;
+ }
 
   pl011_init(uart, 115200);
   init_printf(uart, putc); /**< Init printf w/ a function ptr to putchar */
   printf("\n\nuart5->regs %u\n", (unsigned long)uart5.regs);
   printf("UART0 %u\n", (unsigned long)UART0);
 
-  printf("RPI4 Baremetal UART5 PL011");
+  printf("RPI4 Baremetal UART5 PL011 in the house");
 #else
   uart_init(); /**< Initialize the UART */
   init_printf(0, putc); /**< Init printf w/ a function ptr to putchar */

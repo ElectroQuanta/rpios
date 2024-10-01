@@ -29,8 +29,11 @@ typedef struct {
 } pl011_uart;
 
 
-extern pl011_uart uart5; /**< UART5 is implemented in pl011.c */
-extern pl011_uart uart0; /**< UART0 is implemented in pl011.c */
+//extern pl011_uart uart5; /**< UART5 is implemented in pl011.c */
+//extern pl011_uart uart0; /**< UART0 is implemented in pl011.c */
+
+// Function declarations
+pl011_uart *get_uart_by_index(int index);
 
 
 /**
