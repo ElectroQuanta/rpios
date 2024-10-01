@@ -1,8 +1,15 @@
 arm_64bit=1
 uart_2ndstage=1
-dtoverlay=miniuart-bt
+# Mini-UART
+# dtoverlay=miniuart-bt
+# PL011
+dtoverlay=disable-bt
+dtoverlay=uart0
+dtoverlay=uart5
+enable_uart=1
 
-armstub=armstub-new.bin
+# armstub=armstub-new.bin
 
 [pi4]
 kernel=kernel8-rpi4.img
+#kernel=kernel8.img

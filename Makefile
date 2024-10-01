@@ -13,7 +13,7 @@ ARMGNU ?= aarch64-linux-gnu
 # -Iinclude: include directory
 # -mgeneral-regs-only: use only general registers
 COPS = -DRPI_VERSION=$(RPI_VERSION) -Wall -nostdlib -nostartfiles \
-	-ffreestanding -Iinclude -mgeneral-regs-only
+	-ffreestanding -Iinclude -mgeneral-regs-only -g
 
 # Assembly options
 ASMOPS = -Iinclude
@@ -100,6 +100,9 @@ endif
 	sudo cp config.txt $(BOOTMNT)/
 	sync
 
+disassemble : $(BUILD_DIR)/kernel8.elf
+	$(ARMGNU)-objdump -t $< > kernel8_asm_symbols.txt
+	$(ARMGNU)-objdump -D $< > kernel8_asm.txt
 
 armstub/build/armstub_s.o: armstub/src/armstub.S
 	mkdir -p $(@D)

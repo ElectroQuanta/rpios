@@ -8,4 +8,7 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef volatile u8 reg8;
 typedef volatile u32 reg32;
+
+#define NULL ((void*)0)
