@@ -5,6 +5,8 @@ BOOTMNT ?= /run/media/zmp/bootfs
 
 ARMGNU ?= aarch64-linux-gnu
 
+DEBUG:=n
+
 # C options
 # -Wall: all warnings as errors
 # -nostdlib: baremetal, so no standlib
@@ -13,10 +15,22 @@ ARMGNU ?= aarch64-linux-gnu
 # -Iinclude: include directory
 # -mgeneral-regs-only: use only general registers
 COPS = -DRPI_VERSION=$(RPI_VERSION) -Wall -nostdlib -nostartfiles \
-	-ffreestanding -Iinclude -mgeneral-regs-only -g
+	-ffreestanding -Iinclude -mgeneral-regs-only \
+	-Wl,--gc-sections -ffunction-sections -fdata-sections
+
+ifeq ($(DEBUG), y)
+# Include debug symbols and no optimization
+    COPS += -g -O0  
+else
+# Optimize for release
+    COPS += -O2
+endif
 
 # Assembly options
 ASMOPS = -Iinclude
+
+LDFLAGS = --gc-sections -z common-page-size=$(PAGE_SIZE) \
+	 -z max-page-size=$(PAGE_SIZE)
 
 
 BUILD_DIR = build
@@ -90,7 +104,7 @@ kernel8.img : $(SRC_DIR)/linker.ld $(OBJ_FILES)
 	@echo "Building for RPI $(value RPI_VERSION)"
 	@echo "Deploy to $(value BOOTMNT)"
 	@echo ""
-	$(ARMGNU)-ld -T $(SRC_DIR)/linker.ld -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
+	$(ARMGNU)-ld $(LDFLAGS) -T $(SRC_DIR)/linker.ld  -Map=$(BUILD_DIR)/kernel.map -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
 	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary kernel8.img 
 ifeq ($(RPI_VERSION), 4)
 	sudo cp kernel8.img $(BOOTMNT)/kernel8-rpi4.img
@@ -101,8 +115,10 @@ endif
 	sync
 
 disassemble : $(BUILD_DIR)/kernel8.elf
-	$(ARMGNU)-objdump -t $< > kernel8_asm_symbols.txt
-	$(ARMGNU)-objdump -D $< > kernel8_asm.txt
+	$(ARMGNU)-objdump -t $< > $(basename $<)_asm_symbol.txt
+	$(ARMGNU)-objdump -S --wide $< > $(basename $<).asm
+	$(ARMGNU)-objdump -D $< > $(basename $<)_dis.asm
+	$(ARMGNU)-readelf -a --wide $< > $(basename $<).txt
 
 armstub/build/armstub_s.o: armstub/src/armstub.S
 	mkdir -p $(@D)

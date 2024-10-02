@@ -14,27 +14,38 @@
 
 #include "pl011.h"
 #include "common.h"
+#include "gpio.h"
+#include "peripherals/pl011.h"
+
+//const uart_gpio uart0_alt0 = {.tx = 14, .rx = 15, .func = GFAlt0};
+//const uart_gpio uart5_alt4 = {.tx = 12, .rx = 13, .func = GFAlt4};
+//const uart_gpio uart2_alt0 = {.tx = 12, .rx = 13, .func = GFAlt0};
+
+// pl011_uart uart0 = {.regs = (pl011_regs *)UART0, .gpio = &uart0_alt0};
+// pl011_uart uart5 = {.regs = (pl011_regs *)UART5, .gpio = &uart5_alt4};
+// pl011_uart uart2 = {.regs = (pl011_regs *)UART2, .gpio = &uart2_alt0};
+
 
 // Static variables to hold UART configurations
 // Define the array of UART instances
-static pl011_uart uart_instances[] = {
-    {.regs = (pl011_regs *)UART0,
-     .tx_pin = 14,
-     .rx_pin = 15,
-     .gpio_func = GFAlt0}, // UART0
-    {.regs = (pl011_regs *)UART5,
-     .tx_pin = 12,
-     .rx_pin = 13,
-     .gpio_func = GFAlt4} // UART5
-};
-
-// Function to get a pointer to a UART by index
-pl011_uart *get_uart_by_index(int index) {
-  if (index < 0 || index >= (sizeof(uart_instances) / sizeof(pl011_uart))) {
-	return NULL; // Return NULL for invalid index
-  }
-  return &uart_instances[index];
-}
+//static pl011_uart uart_instances[] = {
+//    {.regs = (pl011_regs *)UART0,
+//     .tx_pin = 14,
+//     .rx_pin = 15,
+//     .gpio_func = GFAlt0}, // UART0
+//    {.regs = (pl011_regs *)UART5,
+//     .tx_pin = 12,
+//     .rx_pin = 13,
+//     .gpio_func = GFAlt4} // UART5
+//};
+//
+//// Function to get a pointer to a UART by index
+//pl011_uart *get_uart_by_index(int index) {
+//  if (index < 0 || index >= (sizeof(uart_instances) / sizeof(pl011_uart))) {
+//	return NULL; // Return NULL for invalid index
+//  }
+//  return &uart_instances[index];
+//}
 
 /**
  * Set the baudrate register
@@ -88,20 +99,20 @@ void pl011_set_br(pl011_uart *uart, u32 baudrate) {
  *  - Enable RX, TX and the UART
  */
 void pl011_init(pl011_uart *uart, u32 baudrate) {
-  gpio_pin_set_func(uart->tx_pin, uart->gpio_func);
-  gpio_pin_set_func(uart->rx_pin, uart->gpio_func);
+  gpio_pin_set_func(uart->gpio->tx, uart->gpio->func);
+  gpio_pin_set_func(uart->gpio->rx, uart->gpio->func);
 
-  gpio_pin_enable(uart->tx_pin);
-  gpio_pin_enable(uart->rx_pin);
+  gpio_pin_enable(uart->gpio->tx);
+  gpio_pin_enable(uart->gpio->rx);
 
   // Set the base address for UART registers if it's not set
   if (uart->regs == NULL) {
-    uart->regs = (pl011_regs *)UART0; // or use the correct base address for other UARTs
+	return;
   }
 
   pl011_set_br(uart, baudrate);
 
-  uart->regs->lcrh |= (PL011_WLEN_8 << PL011_UARTLCRH_WLEN);
+  uart->regs->lcrh = (PL011_WLEN_8 << PL011_UARTLCRH_WLEN);
   //uart->regs->lcrh = 0x60;
 
   uart->regs->cr = (1 << PL011_UARTCR_RXE) | (1 << PL011_UARTCR_TXE) |

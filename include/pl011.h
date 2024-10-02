@@ -15,6 +15,12 @@
 #include "peripherals/pl011.h"
 #include "gpio.h"
 
+//typedef struct __attribute__((packed)) {  // ensure no unexpected padding
+typedef struct {
+  const u8 tx;        /**< GPIO pin for TX */
+  const u8 rx;        /**< GPIO pin for RX */
+  const GpioFunc func; /**< GPIO Function for TX and RX */
+} uart_gpio;
 
 /**
  * @brief PL011 UART typedef
@@ -22,18 +28,18 @@
 
 //typedef struct __attribute__((packed)) {  // ensure no unexpected padding
 typedef struct {
-  pl011_regs *regs; /**< Pointer to UART register */
-  u8 tx_pin;        /**< GPIO pin for TX */
-  u8 rx_pin;        /**< GPIO pin for RX */
-  GpioFunc gpio_func; /**< GPIO Function for TX and RX */
+  pl011_regs * const regs; /**< const Pointer to UART register */
+  const uart_gpio * const gpio; /**< Const pointer to const UART GPIO cfg */
 } pl011_uart;
 
 
+//extern const uart_gpio uart5_alt4;
+//extern const uart_gpio uart0_alt0;
 //extern pl011_uart uart5; /**< UART5 is implemented in pl011.c */
 //extern pl011_uart uart0; /**< UART0 is implemented in pl011.c */
 
 // Function declarations
-pl011_uart *get_uart_by_index(int index);
+//pl011_uart *get_uart_by_index(int index);
 
 
 /**
